@@ -16,6 +16,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import Layout from '../layout';
 import * as Animatable from 'react-native-animatable';
 import StarRating from 'react-native-star-rating-widget';
+import { BASE_URL } from '../../constants';
 
 const { width } = Dimensions.get('window');
 
@@ -59,6 +60,87 @@ const ProductDetailsPage = () => {
     }
   }, [product]);
 
+  const [storeData, setStoreData] = useState<any>(null);
+  const commentRef = React.useRef<string>("");
+  const [userRating, setUserRating] = useState(0);
+  const [inputKey, setInputKey] = useState(0);
+
+
+
+  const fetchStoreData = React.useCallback(async () => {
+    if (parsedProduct && parsedProduct.store && parsedProduct.store.id) {
+      try {
+        const response = await fetch(`${BASE_URL}/store/${parsedProduct.store.id}`);
+        if (response.ok) {
+          const data = await response.json();
+          setStoreData(data);
+        }
+      } catch (error) {
+        console.error("Failed to fetch store data", error);
+      }
+    }
+  }, [parsedProduct]);
+
+  useEffect(() => {
+    fetchStoreData();
+  }, [fetchStoreData]);
+
+  const getPrediction = React.useCallback(async () => {
+    const text = commentRef.current;
+    if (!text.trim()) {
+      Alert.alert('Error', 'Please enter a comment.');
+      return;
+    }
+
+    try {
+      const storeId = parsedProduct?.store?.id;
+      if (!storeId) {
+        Alert.alert('Error', 'Store ID is missing');
+        return;
+      }
+
+      const response = await fetch(`${BASE_URL}/predict`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: text,
+          store_id: storeId,
+          rating: userRating
+        }),
+      });
+
+      if (!response.ok) throw new Error('Prediction request failed');
+
+      const data = await response.json();
+
+      setPopupType(data.prediction === 'positive' ? 'positive' : 'negative');
+      setPopupMessage(`Feedback: ${data.prediction} | Rating: ${userRating}⭐`);
+      setShowPopup(true);
+
+      commentRef.current = "";
+      setUserRating(0);
+      setInputKey(prev => prev + 1);
+      Keyboard.dismiss();
+
+      // Refresh store data to show new rating/feedback immediately
+      fetchStoreData();
+
+      setTimeout(() => setShowPopup(false), 3000);
+    } catch (error) {
+      console.error('Prediction error:', error);
+      Alert.alert('Error', 'Something went wrong while sending feedback.');
+    }
+  }, [userRating, parsedProduct, fetchStoreData]);
+
+  const totalFeedback = storeData?.feedback?.length || 0;
+  const positiveFeedback = storeData?.feedback?.filter((f: any) => f.sentiment === 'positive').length || 0;
+  const negativeFeedback = totalFeedback - positiveFeedback;
+  const displayRating = storeData?.rating || parsedProduct?.store?.rating || 0;
+
+  const handleTextChange = React.useCallback((text: string) => {
+    commentRef.current = text;
+  }, []);
+
   if (!parsedProduct) {
     return (
       <Layout>
@@ -69,80 +151,16 @@ const ProductDetailsPage = () => {
     );
   }
 
-  const getPrediction = async () => {
-    if (!comment.trim()) {
-      Alert.alert('Error', 'Please enter a comment.');
-      return;
-    }
-
-    try {
-      const response = await fetch('http://192.168.1.148:5000/predict', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: comment }),
-      });
-
-      if (!response.ok) throw new Error('Failed to get prediction');
-
-      const data = await response.json();
-
-      const newFeedback: FeedbackItem = {
-        user: 'You',
-        comment: comment,
-        sentiment: data.prediction,
-      };
-
-      setParsedProduct((prev) => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          feedback: [...(prev.feedback || []), newFeedback],
-        };
-      });
-
-      // Calculate feedback stats including new feedback for popup message
-      const totalFeedback = (parsedProduct?.feedback?.length || 0) + 1;
-      const positiveFeedback =
-        (parsedProduct?.feedback?.filter((item) => item.sentiment === 'positive').length || 0) +
-        (data.prediction === 'positive' ? 1 : 0);
-      const feedbackPercentage = (positiveFeedback / totalFeedback) * 100;
-      const starRating = Math.round(feedbackPercentage / 10) / 2;
-
-      setPopupMessage(`Your feedback is ${data.prediction} (${starRating} stars).`);
-      setPopupType(data.prediction === 'positive' ? 'positive' : 'negative');
-      setShowPopup(true);
-      setComment('');
-      Keyboard.dismiss();
-
-      setTimeout(() => setShowPopup(false), 3000);
-    } catch (error) {
-      console.error('Error:', error);
-      Alert.alert('Error', 'Something went wrong!');
-    }
-  };
-
-  const totalFeedback = parsedProduct.feedback?.length || 0;
-  const positiveFeedback =
-    parsedProduct.feedback?.filter((item) => item.sentiment === 'positive').length || 0;
-  const negativeFeedback = totalFeedback - positiveFeedback;
-  const feedbackPercentage = totalFeedback > 0 ? (positiveFeedback / totalFeedback) * 100 : 0;
-  const starRating = Math.round(feedbackPercentage / 10) / 2; // Round to nearest 0.5
-
   return (
     <Layout>
       <ScrollView contentContainerStyle={styles.container}>
-        {/* Improved Product Image Section */}
-        <View style={styles.imageContainer}>
-          <Image
-            source={{ uri: parsedProduct.image }}
-            style={styles.productImage}
-            resizeMode="contain"
-          />
-        </View>
+        {/* Improved Product Image Section removed as store owners don't upload images */}
 
         <View style={styles.card}>
           <Text style={styles.productName}>{parsedProduct.name}</Text>
-          <Text style={styles.productPrice}>${parsedProduct.price.toFixed(2)}</Text>
+          <Text style={styles.productPrice}>
+            Rs. {(typeof parsedProduct.price === 'number' ? parsedProduct.price : parseFloat(parsedProduct.price || '0')).toFixed(2)}
+          </Text>
           <Text
             style={[
               styles.productAvailability,
@@ -157,16 +175,39 @@ const ProductDetailsPage = () => {
           <Text style={styles.sectionTitle}>Store Information</Text>
           <Text style={styles.productStore}>🏬 {parsedProduct.store.name}</Text>
           <Text style={styles.productStoreLocation}>📍 {parsedProduct.store.location}</Text>
+          {storeData?.mapslink ? (
+            <TouchableOpacity 
+              style={{ marginTop: 10 }}
+              onPress={() => {
+                import('react-native').then(({ Linking }) => {
+                  Linking.openURL(storeData.mapslink).catch(() => Alert.alert('Error', 'Could not open map link'));
+                });
+              }}
+            >
+              <Text style={{ color: '#10B981', fontWeight: 'bold' }}>🗺️ Open Location on Google Maps</Text>
+            </TouchableOpacity>
+          ) : null}
+          <TouchableOpacity 
+            style={{ marginTop: 10 }}
+            onPress={() => {
+              router.push({
+                pathname: '/feedback/StoreDetailsPage',
+                params: { store: JSON.stringify(parsedProduct.store) },
+              });
+            }}
+          >
+            <Text style={{ color: '#007bff', fontWeight: 'bold' }}>🏪 View Store Profile</Text>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Feedback Summary</Text>
+          <Text style={styles.sectionTitle}>Store Feedback Summary</Text>
           <Text style={styles.feedbackSummary}>
             Total: {totalFeedback} | Positive: {positiveFeedback} | Negative: {negativeFeedback}
           </Text>
 
           <StarRating
-            rating={starRating}
+            rating={displayRating}
             starSize={30}
             onChange={() => { }}
             enableHalfStar
@@ -177,49 +218,55 @@ const ProductDetailsPage = () => {
           />
 
           <Text style={styles.feedbackSummary}>
-            Rating: {starRating} out of 5 ({feedbackPercentage.toFixed(1)}%)
+            Rating: {displayRating} out of 5
           </Text>
         </View>
 
-        <Text style={styles.subTitle}>Customer Feedback</Text>
-        {parsedProduct.feedback && parsedProduct.feedback.length > 0 ? (
-          <FlatList
-            data={parsedProduct.feedback}
-            keyExtractor={(_, index) => index.toString()}
-            renderItem={({ item }) => (
-              <View style={styles.feedbackCard}>
-                <Text style={styles.feedbackUser}>🧑 {item.user}</Text>
-                <Text style={styles.feedbackComment}>💬 {item.comment}</Text>
-                <Text
-                  style={[
-                    styles.feedbackSentiment,
-                    { color: item.sentiment === 'positive' ? '#10B981' : '#EF4444' },
-                  ]}
-                >
-                  {item.sentiment === 'positive' ? '😊 Positive' : '😞 Negative'}
-                </Text>
-              </View>
-            )}
-          />
+        <Text style={styles.subTitle}>Store Customer Feedback</Text>
+        {storeData?.feedback && storeData.feedback.length > 0 ? (
+          storeData.feedback.slice(0, 3).map((item: any, index: number) => (
+            <View key={index} style={styles.feedbackCard}>
+              <Text style={styles.feedbackUser}>🧑 {item.user}</Text>
+              <Text style={styles.feedbackComment}>💬 {item.comment}</Text>
+              <Text
+                style={[
+                  styles.feedbackSentiment,
+                  { color: item.sentiment === 'positive' ? '#10B981' : '#EF4444' },
+                ]}
+              >
+                {item.sentiment === 'positive' ? '😊 Positive' : '😞 Negative'}
+              </Text>
+            </View>
+          ))
         ) : (
           <Text style={styles.noFeedback}>No feedback available.</Text>
         )}
 
-        <Text style={styles.subTitle}>Add Your Feedback</Text>
+        <Text style={styles.subTitle}>Add Store Feedback</Text>
         <TextInput
+          key={inputKey}
           style={styles.input}
           placeholder="Enter your feedback here..."
-          value={comment}
-          onChangeText={setComment}
+          onChangeText={handleTextChange}
           multiline
         />
+        <View style={{ alignItems: 'center', marginVertical: 10 }}>
+          <StarRating
+            rating={userRating}
+            onChange={setUserRating}
+            starSize={40}
+            enableHalfStar
+            color="#facc15"
+            emptyColor="#e5e7eb"
+          />
+        </View>
         <TouchableOpacity style={styles.feedbackButton} onPress={getPrediction}>
-          <Text style={styles.buttonText}>📝 Submit Feedback</Text>
+          <Text style={styles.buttonText}>Submit Feedback</Text>
         </TouchableOpacity>
 
         <View style={styles.buttonContainer}>
           <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-            <Text style={styles.buttonText}>🔙 Go Back</Text>
+            <Text style={styles.buttonText}>Go Back</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>

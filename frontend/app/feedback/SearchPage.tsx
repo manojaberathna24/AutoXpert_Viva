@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, FlatList, Image, StyleSheet, ScrollView } from 'react-native';
 import Layout from '../layout';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { debounce } from 'lodash';
+import { BASE_URL } from '../../constants';
 
 type Store = {
   id: number;
@@ -39,22 +40,39 @@ const SearchPage = () => {
 
   const router = useRouter();
 
-  const handleSearch = debounce(async () => {
-    const fetchedData: Product[] = [
-      { id: 1, name: 'Filter Oil', price: 45.99, available: true, image: 'https://paisleyautocare.co.uk/cdn/shop/articles/Quality_Oil_Filter.webp?v=1686642910&width=1600', store: storeData[0] },
-      { id: 2, name: 'Filter Oil', price: 45.99, available: true, image: 'https://cartek.lk/cdn/shop/files/VIC-C-932-OIL-FILTER-Cartek-LK-Sri-Lanka.png?v=1728283596', store: storeData[0] },
-      { id: 3, name: 'Filter Oil', price: 45.99, available: true, image: 'https://m.media-amazon.com/images/I/71OQulmkp2L.jpg', store: storeData[0] },
-      { id: 4, name: 'Filter Oil', price: 45.99, available: true, image: 'https://www.sampiyonfilter.com.tr/media/Blog/keep.jpg', store: storeData[0] },
-      { id: 5, name: 'Headlight Bulb', price: 25.99, available: true, image: 'https://static.tudo.lk/uploads/2023/10/h4-9003-hb2-hi-lo-beam-led-motorcycle-headlight-bulb-16965944565325784.webp', store: storeData[2] },
-      { id: 6, name: 'Headlight Bulb', price: 25.99, available: true, image: 'https://dealhub.lk/wp-content/uploads/2023/04/Kaier-V6-LED-Headlight-Bulb-2pcs@ido.lk_.jpg', store: storeData[2] },
-      { id: 7, name: 'Headlight Bulb', price: 25.99, available: true, image: 'https://static.tudo.lk/uploads/2023/10/h4-9003-hb2-hi-lo-beam-led-motorcycle-headlight-bulb-16965944565325784.webp', store: storeData[2] },
-      { id: 8, name: 'Headlight Bulb', price: 25.99, available: true, image: 'https://m.media-amazon.com/images/I/71l3uGJ8n1L._AC_UF894,1000_QL80_.jpg', store: storeData[2] },
-      { id: 9, name: 'Brake Pads', price: 30.00, available: true, image: 'https://images-cdn.ubuy.co.in/633ff1c6acee89023641bdf5-power-stop-koe206-autospecialty-rear.jpg', store: storeData[0] },
-      { id: 10, name: 'Brake Pads', price: 30.00, available: true, image: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRjWZ0yuYhwQv8STSyH30p0lgGYBd2cdJzjaQ&s', store: storeData[0] },
-      { id: 11, name: 'Brake Pads', price: 30.00, available: true, image: 'https://media.takealot.com/covers_images/a5bc0de639234e819a580ffe2cfb3e04/s-pdpxl.file', store: storeData[0] },
-      { id: 12, name: 'Brake Pads', price: 30.00, available: true, image: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSWcZ-KHOcL4WmWFcktOQSMVjklkRzTFxhFCw&s', store: storeData[0] },
-    ];
-    const filteredProducts = fetchedData.filter(product =>
+  const [allProducts, setAllProducts] = useState<Product[]>([]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      const fetchData = async () => {
+        try {
+          // Fetch stores
+          const storeRes = await fetch(`${BASE_URL}/api/all`);
+          if (storeRes.ok) {
+            const storeData = await storeRes.json();
+            if (storeData && storeData.length > 0) setStores(storeData);
+          }
+          
+          // Fetch products
+          const prodRes = await fetch(`${BASE_URL}/api/all-products`);
+          if (prodRes.ok) {
+            const prodData = await prodRes.json();
+            if (prodData && prodData.length > 0) setAllProducts(prodData);
+          }
+        } catch (error) {
+          console.error('Failed to fetch data:', error);
+        }
+      };
+      fetchData();
+    }, [])
+  );
+
+  const handleSearch = debounce(() => {
+    if (!searchQuery.trim()) {
+      setProducts([]);
+      return;
+    }
+    const filteredProducts = allProducts.filter(product =>
       product.name.toLowerCase().includes(searchQuery.toLowerCase())
     );
     setProducts(filteredProducts);
@@ -217,10 +235,9 @@ const StoreCard = ({ store, onPress }: { store: Store; onPress: () => void }) =>
 
 const ProductCard = ({ product, onPress }: { product: Product; onPress: () => void }) => (
   <TouchableOpacity style={styles.productCard} onPress={onPress} accessibilityRole="button" accessibilityLabel={`Product: ${product.name}, Price: ${product.price}`}>
-    <Image source={{ uri: product.image }} style={styles.productImage} />
     <View style={styles.productDetails}>
       <Text style={styles.productName}>{product.name}</Text>
-      <Text style={styles.productPrice}>${product.price}</Text>
+      <Text style={styles.productPrice}>Rs. {product.price}</Text>
       <Text style={[styles.productAvailability, { color: product.available ? '#28a745' : '#dc3545' }]}>
         {product.available ? 'In Stock' : 'Out of Stock'}
       </Text>

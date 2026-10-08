@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, FlatList, Image, StyleSheet } from 'react-native';
 import Layout from '../layout';
+import { useFocusEffect } from 'expo-router';
+import { BASE_URL } from '../../constants';
 
 // Sample data for registered stores
 const storeData = [
@@ -43,54 +45,41 @@ const storeData = [
 
 const SearchPage = () => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [products, setProducts] = useState([]);
-  const [stores, setStores] = useState(storeData); // Set store data directly
+  const [products, setProducts] = useState<any[]>([]);
+  const [stores, setStores] = useState<any[]>(storeData);
+  const [allProducts, setAllProducts] = useState<any[]>([]);
 
-  // Function to handle search logic (filter products based on search query)
+  useFocusEffect(
+    React.useCallback(() => {
+      const fetchData = async () => {
+        try {
+          // Fetch stores
+          const storeRes = await fetch(`${BASE_URL}/api/all`);
+          if (storeRes.ok) {
+            const storeData = await storeRes.json();
+            if (storeData && storeData.length > 0) setStores(storeData);
+          }
+          
+          // Fetch products
+          const prodRes = await fetch(`${BASE_URL}/api/all-products`);
+          if (prodRes.ok) {
+            const prodData = await prodRes.json();
+            if (prodData && prodData.length > 0) setAllProducts(prodData);
+          }
+        } catch (error) {
+          console.error('Failed to fetch data:', error);
+        }
+      };
+      fetchData();
+    }, [])
+  );
+
   const handleSearch = async () => {
-    const fetchedData = [
-      {
-        id: 1,
-        name: 'Filte Oil',
-        price: 45.99,
-        available: true,
-        image: 'https://example.com/images/brake_pads.jpg',
-        store: {
-          id: 101,
-          name: 'Auto Parts Store 1',
-          location: '123 Main St, City, Country',
-          contact: '+1234567890',
-        }
-      },
-      {
-        id: 2,
-        name: 'Filte Oil',
-        price: 12.50,
-        available: false,
-        image: 'https://example.com/images/oil_filter.jpg',
-        store: {
-          id: 102,
-          name: 'Speedy Auto Repairs',
-          location: '456 Elm St, City, Country',
-          contact: '+0987654321',
-        }
-      },
-      {
-        id: 3,
-        name: 'Filte Oil',
-        price: 25.99,
-        available: true,
-        image: 'https://example.com/images/headlight_bulb.jpg',
-        store: {
-          id: 103,
-          name: 'Parts and Service Hub',
-          location: '789 Oak St, City, Country',
-          contact: '+1122334455',
-        }
-      }
-    ];
-    // Filter products based on search query (you can adjust this logic to fit your search needs)
-    const filteredProducts = fetchedData.filter(product =>
+    if (!searchQuery.trim()) {
+      setProducts([]);
+      return;
+    }
+    const filteredProducts = allProducts.filter(product =>
       product.name.toLowerCase().includes(searchQuery.toLowerCase())
     );
     setProducts(filteredProducts);
@@ -128,10 +117,9 @@ const SearchPage = () => {
             data={products}
             renderItem={({ item }) => (
               <TouchableOpacity style={styles.productCard}>
-                <Image source={{ uri: item.image }} style={styles.productImage} />
                 <View style={styles.productDetails}>
                   <Text style={styles.productName}>{item.name}</Text>
-                  <Text style={styles.productPrice}>${item.price}</Text>
+                  <Text style={styles.productPrice}>Rs. {item.price}</Text>
                   <Text style={styles.productAvailability}>
                     {item.available ? 'In Stock' : 'Out of Stock'}
                   </Text>

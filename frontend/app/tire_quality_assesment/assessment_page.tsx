@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import React from 'react';
 import { useLocalSearchParams } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import Layout from '../layout';
 
 export default function Assessment_page() {
@@ -8,63 +9,109 @@ export default function Assessment_page() {
   const { predicted_tire_depth_mm, tire_condition } = params;
 
   const formattedTireDepth = parseFloat(
-    Array.isArray(predicted_tire_depth_mm) ? predicted_tire_depth_mm[0] : predicted_tire_depth_mm
+    Array.isArray(predicted_tire_depth_mm) ? predicted_tire_depth_mm[0] : (predicted_tire_depth_mm as string) || "0"
   ).toFixed(2);
 
-  const tireCondition = Array.isArray(tire_condition) ? tire_condition[0] : tire_condition;
+  const tireCondition = (Array.isArray(tire_condition) ? tire_condition[0] : tire_condition as string) || "middle";
 
-  const getRunningMileage = (condition) => {
-    const mileageMap = {
+  const getRunningMileage = (condition: string) => {
+    const mileageMap: any = {
       low: 10000,
       middle: 30000,
       good: 50000,
       'very good': 60000,
     };
-    return mileageMap[condition.toLowerCase()] || 0;
+    return mileageMap[condition.toLowerCase()] || 30000;
   };
 
   const runningMileage = getRunningMileage(tireCondition);
+  const remainingLifePercent = Math.round((runningMileage / 60000) * 100);
 
-  const getTireConditionMessage = (condition) => {
-    const conditionLabelMap = {
-      low: '⚠️ Running Condition is UNSAFE. Predictable Mileage: ',
-      middle: 'Running Condition is NORMAL. Predictable Mileage: ',
-      good: 'Running Condition is SAFE. Predictable Mileage: ',
-      'very good': '✅ Running Condition is FULLY SAFE. Predictable Mileage: ',
+  const getStatusConfig = (condition: string) => {
+    const configs: any = {
+      low: {
+        color: '#EF4444', 
+        bgColor: '#FEF2F2',
+        icon: 'warning',
+        title: 'Danger: Immediate Replacement',
+        message: 'Your tire is severely worn out. It is unsafe to drive. Replace immediately.',
+      },
+      middle: {
+        color: '#F59E0B', 
+        bgColor: '#FFFBEB',
+        icon: 'warning',
+        title: 'Caution: Wear Detected',
+        message: 'Your tire is showing significant wear. Plan for replacement within 5,000 km.',
+      },
+      good: {
+        color: '#10B981', 
+        bgColor: '#ECFDF5',
+        icon: 'checkmark-circle',
+        title: 'Good Condition',
+        message: 'Your tire is in good condition. Keep monitoring it regularly.',
+      },
+      'very good': {
+        color: '#3B82F6', 
+        bgColor: '#EFF6FF',
+        icon: 'shield-checkmark',
+        title: 'Excellent Condition',
+        message: 'Your tire is practically new and in perfect running condition.',
+      },
     };
-
-    const label = conditionLabelMap[condition.toLowerCase()] || 'Unknown Condition. Predictable Mileage: ';
-    return `${label}${runningMileage.toLocaleString()} km`;
+    return configs[condition.toLowerCase()] || configs['middle'];
   };
 
-  const tireConditionMessage = getTireConditionMessage(tireCondition);
-
-  // Color badge based on condition
-  const badgeColors = {
-    low: '#e74c3c', // red
-    middle: '#f39c12', // orange
-    good: '#27ae60', // green
-    'very good': '#2ecc71', // bright green
-  };
-
-  const badgeColor = badgeColors[tireCondition.toLowerCase()] || '#7f8c8d'; // gray fallback
+  const statusConfig = getStatusConfig(tireCondition);
 
   return (
     <Layout>
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         <View style={styles.card}>
-          <Text style={styles.header}>Tire Assessment Result</Text>
+          <Text style={styles.header}>Assessment Result</Text>
 
-          <View style={[styles.badge, { backgroundColor: badgeColor }]}>
+          {/* Remaining Life Progress */}
+          <View style={styles.progressSection}>
+            <View style={styles.progressHeader}>
+              <Text style={styles.progressLabel}>Remaining Life</Text>
+              <Text style={[styles.progressPercent, { color: statusConfig.color }]}>{remainingLifePercent}%</Text>
+            </View>
+            <View style={styles.progressBarBg}>
+              <View style={[styles.progressBarFill, { width: `${remainingLifePercent}%`, backgroundColor: statusConfig.color }]} />
+            </View>
+          </View>
+
+          {/* Badge */}
+          <View style={[styles.badge, { backgroundColor: statusConfig.color }]}>
+            <Ionicons name={statusConfig.icon as any} size={20} color="white" style={{ marginRight: 8 }} />
             <Text style={styles.badgeText}>{tireCondition.toUpperCase()}</Text>
           </View>
 
-          <Text style={styles.message}>{tireConditionMessage}</Text>
+          {/* Metric Boxes */}
+          <View style={styles.metricsContainer}>
+            <View style={styles.metricBox}>
+              <Text style={styles.metricLabel}>Tread Depth</Text>
+              <Text style={styles.metricValue}>{formattedTireDepth}<Text style={styles.metricUnit}>mm</Text></Text>
+            </View>
+            <View style={styles.metricBoxRight}>
+              <Text style={styles.metricLabel}>Est. Mileage</Text>
+              <Text style={styles.metricValue}>{runningMileage / 1000}k<Text style={styles.metricUnit}>km</Text></Text>
+            </View>
+          </View>
 
-          {/* <View style={styles.depthContainer}>
-            <Text style={styles.depthLabel}>Predicted Tire Depth:</Text>
-            <Text style={styles.depthValue}>{formattedTireDepth} mm</Text>
-          </View> */}
+          {/* Caution Message */}
+          <View style={[styles.cautionBox, { backgroundColor: statusConfig.bgColor }]}>
+            <Text style={[styles.cautionTitle, { color: statusConfig.color }]}>{statusConfig.title}</Text>
+            <Text style={styles.cautionMessage}>{statusConfig.message}</Text>
+          </View>
+
+          {/* Info Text */}
+          <View style={styles.infoContainer}>
+            <Ionicons name="information-circle-outline" size={16} color="#94A3B8" />
+            <Text style={styles.infoText}>
+              Predictions are based on AI analysis and should be verified with a physical gauge.
+            </Text>
+          </View>
+
         </View>
       </ScrollView>
     </Layout>
@@ -76,61 +123,141 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 40,
-    backgroundColor: '#f2f6fc',
+    paddingVertical: 20,
+    backgroundColor: '#F3F4F6',
   },
   card: {
     width: '90%',
     backgroundColor: 'white',
-    borderRadius: 16,
-    paddingVertical: 40,
-    paddingHorizontal: 25,
+    borderRadius: 24,
+    paddingVertical: 30,
+    paddingHorizontal: 20,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
     shadowRadius: 10,
-    elevation: 10,
+    elevation: 5,
     alignItems: 'center',
   },
   header: {
-    fontSize: 28,
-    fontWeight: '700',
+    fontSize: 24,
+    fontWeight: '800',
+    marginBottom: 30,
+    color: '#1E293B',
+  },
+  progressSection: {
+    width: '100%',
     marginBottom: 20,
-    color: '#34495e',
+  },
+  progressHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  progressLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  progressPercent: {
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  progressBarBg: {
+    height: 12,
+    backgroundColor: '#E2E8F0',
+    borderRadius: 10,
+    width: '100%',
+    overflow: 'hidden',
+  },
+  progressBarFill: {
+    height: '100%',
+    borderRadius: 10,
   },
   badge: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 30,
     paddingVertical: 10,
     borderRadius: 50,
-    marginBottom: 20,
+    marginBottom: 30,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
   badgeText: {
     color: 'white',
-    fontWeight: '700',
-    fontSize: 22,
-    letterSpacing: 1.2,
+    fontWeight: '800',
+    fontSize: 18,
+    letterSpacing: 1,
   },
-  message: {
-    fontSize: 20,
-    fontWeight: '600',
-    textAlign: 'center',
-    color: '#2c3e50',
-    marginBottom: 30,
-    paddingHorizontal: 10,
-  },
-  depthContainer: {
+  metricsContainer: {
     flexDirection: 'row',
+    width: '100%',
+    borderColor: '#E2E8F0',
+    borderWidth: 1,
+    borderRadius: 16,
+    marginBottom: 30,
+    overflow: 'hidden',
+  },
+  metricBox: {
+    flex: 1,
+    paddingVertical: 20,
+    alignItems: 'center',
+    borderRightWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  metricBoxRight: {
+    flex: 1,
+    paddingVertical: 20,
     alignItems: 'center',
   },
-  depthLabel: {
-    fontSize: 18,
-    fontWeight: '500',
-    color: '#7f8c8d',
-    marginRight: 10,
-  },
-  depthValue: {
-    fontSize: 22,
+  metricLabel: {
+    fontSize: 14,
     fontWeight: '700',
-    color: '#2980b9',
+    color: '#64748B',
+    marginBottom: 8,
+  },
+  metricValue: {
+    fontSize: 28,
+    fontWeight: '900',
+    color: '#1E293B',
+  },
+  metricUnit: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#94A3B8',
+  },
+  cautionBox: {
+    width: '100%',
+    padding: 20,
+    borderRadius: 16,
+    marginBottom: 30,
+  },
+  cautionTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    marginBottom: 8,
+  },
+  cautionMessage: {
+    fontSize: 15,
+    color: '#334155',
+    lineHeight: 22,
+    fontWeight: '500',
+  },
+  infoContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    paddingHorizontal: 10,
+  },
+  infoText: {
+    flex: 1,
+    fontSize: 12,
+    color: '#94A3B8',
+    marginLeft: 8,
+    fontStyle: 'italic',
   },
 });

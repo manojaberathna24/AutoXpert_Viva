@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
-import MapPicker from '../../components/MapPicker';
 import { BASE_URL } from '../../constants';
 import * as Location from 'expo-location';
-import { useNavigation, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import Layout from '../layout';
 
 type Coordinate = {
@@ -13,7 +12,6 @@ type Coordinate = {
 };
 
 const StoreRegistrationScreen = () => {
-  const navigation = useNavigation<any>();
   const router = useRouter();
   const [step, setStep] = useState(1);
 
@@ -27,6 +25,24 @@ const StoreRegistrationScreen = () => {
   const [mapslink, setMapslink] = useState('');
   const [locationId, setLocationId] = useState('L1'); // Default to Colombo
   const [location, setLocation] = useState<Coordinate | null>({ latitude: 6.9271, longitude: 79.8612 }); // Default to Colombo
+
+  // Security Questions
+  const [q1, setQ1] = useState('What is your mother\'s maiden name?');
+  const [a1, setA1] = useState('');
+  const [q2, setQ2] = useState('What was the name of your first pet?');
+  const [a2, setA2] = useState('');
+  const [q3, setQ3] = useState('What was the name of your primary school?');
+  const [a3, setA3] = useState('');
+
+  const securityQuestionsList = [
+    "What is your mother's maiden name?",
+    "What was the name of your first pet?",
+    "What was the name of your primary school?",
+    "In what city were you born?",
+    "What is your favorite book?",
+    "What was your first car?",
+    "What is your father's middle name?"
+  ];
 
   useEffect(() => {
     (async () => {
@@ -58,9 +74,14 @@ const StoreRegistrationScreen = () => {
         Alert.alert('Password Mismatch', 'Passwords do not match.');
         return;
       }
+    } else if (step === 2) {
+        if (!storeDescription || !locationId) {
+            Alert.alert('Missing Fields', 'Please provide a description and area.');
+            return;
+        }
     }
 
-    setStep((prev) => Math.min(prev + 1, 2));
+    setStep((prev) => Math.min(prev + 1, 3));
   };
 
   const handleBack = () => {
@@ -68,8 +89,8 @@ const StoreRegistrationScreen = () => {
   };
 
   const handleSubmit = async () => {
-    if (!location) {
-      Alert.alert('Missing Location', 'Location is required.');
+    if (!a1 || !a2 || !a3) {
+      Alert.alert('Missing Answers', 'Please answer all security questions.');
       return;
     }
 
@@ -84,6 +105,7 @@ const StoreRegistrationScreen = () => {
       longitude: location?.longitude || 0,
       mapslink,
       location_id: locationId,
+      q1, a1, q2, a2, q3, a3
     };
 
     try {
@@ -94,14 +116,7 @@ const StoreRegistrationScreen = () => {
         body: JSON.stringify(formData),
       });
 
-      let data;
-      const contentType = response.headers.get("content-type");
-      if (contentType && contentType.includes("application/json")) {
-        data = await response.json();
-      } else {
-        const text = await response.text();
-        throw new Error(`Server returned HTML (Status ${response.status}): ${text.substring(0, 40)}...`);
-      }
+      const data = await response.json();
 
       if (response.ok) {
         Alert.alert('Success', data.message, [
@@ -112,27 +127,24 @@ const StoreRegistrationScreen = () => {
       }
     } catch (error: any) {
       console.error("Registration Error:", error);
-      Alert.alert(
-        'Server Connection Error',
-        `Details: ${error.message || 'Network request failed'}\n\nPlease ensure your PC and Phone are on the same WiFi.`
-      );
+      Alert.alert('Error', 'Failed to connect to server.');
     }
   };
 
   const renderStepIndicator = () => (
     <View style={styles.stepContainer}>
-      {[1, 2].map((s) => (
+      {[1, 2, 3].map((s) => (
         <TouchableOpacity
           key={s}
-          onPress={() => setStep(s)}
-          style={[styles.stepCircle, step === s && styles.activeStep]}>
-          <Text style={[styles.stepText, step === s && styles.activeStepText]}>{s}</Text>
+          onPress={() => {
+              if (s < step) setStep(s);
+          }}
+          style={[styles.stepCircle, step === s && styles.activeStep, step > s && styles.completedStep]}>
+          <Text style={[styles.stepText, step >= s && styles.activeStepText]}>{s}</Text>
         </TouchableOpacity>
       ))}
     </View>
   );
-
-
 
   return (
     <Layout>
@@ -158,28 +170,15 @@ const StoreRegistrationScreen = () => {
             <TextInput style={styles.input} value={password} onChangeText={setPassword} secureTextEntry />
 
             <Text style={styles.label}>Confirm Password</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <TextInput
-                style={[styles.input, { flex: 1 }]}
-                value={confirmPassword}
-                onChangeText={setConfirmPassword}
-                secureTextEntry
-              />
-              {confirmPassword && password === confirmPassword && (
-                <Text style={{ marginLeft: 10, color: 'green', fontWeight: 'bold' }}>✅</Text>
-              )}
-            </View>
+            <TextInput style={styles.input} value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry />
           </>
         )}
 
         {step === 2 && (
           <>
             <Text style={styles.label}>District / Operating Area</Text>
-            <View style={{ borderWidth: 1, borderColor: '#aaa', borderRadius: 8, marginTop: 5, marginBottom: 10 }}>
-              <Picker
-                selectedValue={locationId}
-                onValueChange={(itemValue) => setLocationId(itemValue)}
-              >
+            <View style={styles.pickerContainer}>
+              <Picker selectedValue={locationId} onValueChange={(v) => setLocationId(v)}>
                 <Picker.Item label="Colombo" value="L1" />
                 <Picker.Item label="Kandy" value="L2" />
                 <Picker.Item label="Galle" value="L3" />
@@ -189,7 +188,7 @@ const StoreRegistrationScreen = () => {
 
             <Text style={styles.label}>Store Description</Text>
             <TextInput
-              style={[styles.input, { height: 100 }]}
+              style={[styles.input, { height: 80 }]}
               value={storeDescription}
               onChangeText={setStoreDescription}
               multiline
@@ -203,7 +202,36 @@ const StoreRegistrationScreen = () => {
               onChangeText={setMapslink}
               placeholder="Paste Google Maps URL here"
             />
-            <Text style={styles.subLabel}>Copy the link from Google Maps app and paste here.</Text>
+          </>
+        )}
+
+        {step === 3 && (
+          <>
+            <Text style={styles.infoText}>These questions will help you recover your password if you forget it.</Text>
+            
+            <Text style={styles.label}>Security Question 1</Text>
+            <View style={styles.pickerContainer}>
+              <Picker selectedValue={q1} onValueChange={(v) => setQ1(v)}>
+                {securityQuestionsList.map(q => <Picker.Item key={q} label={q} value={q} />)}
+              </Picker>
+            </View>
+            <TextInput style={styles.input} placeholder="Your Answer" value={a1} onChangeText={setA1} />
+
+            <Text style={styles.label}>Security Question 2</Text>
+            <View style={styles.pickerContainer}>
+              <Picker selectedValue={q2} onValueChange={(v) => setQ2(v)}>
+                {securityQuestionsList.map(q => <Picker.Item key={q} label={q} value={q} />)}
+              </Picker>
+            </View>
+            <TextInput style={styles.input} placeholder="Your Answer" value={a2} onChangeText={setA2} />
+
+            <Text style={styles.label}>Security Question 3</Text>
+            <View style={styles.pickerContainer}>
+              <Picker selectedValue={q3} onValueChange={(v) => setQ3(v)}>
+                {securityQuestionsList.map(q => <Picker.Item key={q} label={q} value={q} />)}
+              </Picker>
+            </View>
+            <TextInput style={styles.input} placeholder="Your Answer" value={a3} onChangeText={setA3} />
           </>
         )}
 
@@ -214,7 +242,7 @@ const StoreRegistrationScreen = () => {
             </TouchableOpacity>
           )}
 
-          {step < 2 ? (
+          {step < 3 ? (
             <TouchableOpacity style={styles.submitButton} onPress={handleNext}>
               <Text style={styles.submitButtonText}>Next</Text>
             </TouchableOpacity>
@@ -232,60 +260,26 @@ const StoreRegistrationScreen = () => {
 const styles = StyleSheet.create({
   container: { padding: 20 },
   title: { fontSize: 24, fontWeight: 'bold', textAlign: 'center', marginBottom: 10 },
-
+  infoText: { fontSize: 14, color: '#666', marginBottom: 15, textAlign: 'center' },
   stepContainer: { flexDirection: 'row', justifyContent: 'center', marginBottom: 20 },
   stepCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#ccc',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginHorizontal: 6,
+    width: 32, height: 32, borderRadius: 16, backgroundColor: '#ccc',
+    justifyContent: 'center', alignItems: 'center', marginHorizontal: 6,
   },
   activeStep: { backgroundColor: '#007bff' },
+  completedStep: { backgroundColor: '#28a745' },
   stepText: { color: '#000', fontWeight: 'bold' },
   activeStepText: { color: '#fff' },
-
   label: { fontWeight: 'bold', marginTop: 10 },
   input: {
-    borderWidth: 1,
-    padding: 10,
-    borderRadius: 8,
-    marginTop: 5,
-    marginBottom: 10,
-    borderColor: '#aaa',
+    borderWidth: 1, padding: 10, borderRadius: 8, marginTop: 5,
+    marginBottom: 10, borderColor: '#aaa',
   },
-
-  subLabel: { fontSize: 13, color: '#666', marginBottom: 10 },
-  coordInputGroup: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 15 },
-  coordInput: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 8, backgroundColor: '#f9f9f9', textAlign: 'center' },
-  miniLabel: { fontSize: 12, color: '#888', textAlign: 'center', marginBottom: 2 },
-  map: { width: '100%', height: 300, borderRadius: 10 },
-
-  buttonGroup: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 20,
-  },
-  submitButton: {
-    backgroundColor: '#007bff',
-    padding: 15,
-    borderRadius: 10,
-    flex: 1,
-    alignItems: 'center',
-    marginLeft: 10,
-  },
+  pickerContainer: { borderWidth: 1, borderColor: '#aaa', borderRadius: 8, marginTop: 5, marginBottom: 10 },
+  buttonGroup: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 20 },
+  submitButton: { backgroundColor: '#007bff', padding: 15, borderRadius: 10, flex: 1, alignItems: 'center', marginLeft: 10 },
   submitButtonText: { color: '#fff', fontWeight: 'bold' },
-
-  secondaryButton: {
-    backgroundColor: '#eee',
-    padding: 15,
-    borderRadius: 10,
-    flex: 1,
-    alignItems: 'center',
-    marginRight: 10,
-  },
+  secondaryButton: { backgroundColor: '#eee', padding: 15, borderRadius: 10, flex: 1, alignItems: 'center', marginRight: 10 },
   secondaryText: { color: '#333', fontWeight: 'bold' },
 });
 

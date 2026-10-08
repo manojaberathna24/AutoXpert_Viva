@@ -76,6 +76,11 @@ const LoginScreen = () => {
             <Text style={styles.buttonText}>Login</Text>
           </TouchableOpacity>
 
+          {/* Link to Forgot Password Page */}
+          <TouchableOpacity onPress={() => router.push('/feedback/ForgotPassword')}>
+            <Text style={[styles.linkText, { color: '#FF5733' }]}>Forgot Password?</Text>
+          </TouchableOpacity>
+
           {/* Link to Register Page */}
           <TouchableOpacity onPress={() => router.push('/feedback/StoreRegistraion')}>
             <Text style={styles.linkText}>New Store Owner? Register Here</Text>

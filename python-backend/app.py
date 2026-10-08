@@ -54,7 +54,19 @@ def create_app():
                           email TEXT NOT NULL,
                           password TEXT NOT NULL,
                           latitude REAL NOT NULL,
-                          longitude REAL NOT NULL)''')
+                          longitude REAL NOT NULL,
+                          mapslink TEXT,
+                          location_id TEXT,
+                          q1 TEXT, a1 TEXT,
+                          q2 TEXT, a2 TEXT,
+                          q3 TEXT, a3 TEXT)''')
+            
+            # Migration: Ensure columns exist if table was created earlier
+            for col in ["mapslink", "location_id", "q1", "a1", "q2", "a2", "q3", "a3"]:
+                try:
+                    c.execute(f"ALTER TABLE stores ADD COLUMN {col} TEXT")
+                except Exception:
+                    pass # Column already exists
 
             # Logs table
             c.execute('''CREATE TABLE IF NOT EXISTS logs
@@ -135,9 +147,22 @@ def create_app():
         feedback_rows = c.fetchall()
         feedback = [{'user': r[0] or 'Anonymous', 'comment': r[1], 'sentiment': r[2], 'rating': r[3]} for r in feedback_rows]
         
-        # Calculate dynamic rating
-        ratings = [r[3] for r in feedback_rows if r[3] is not None and r[3] > 0]
-        average_rating = sum(ratings) / len(ratings) if ratings else 0.0
+        # Calculate dynamic rating using both explicit stars and NLP sentiment
+        calculated_ratings = []
+        for r in feedback_rows:
+            star_val = r[3]
+            senti_val = r[2]
+            if star_val is not None and star_val > 0:
+                calculated_ratings.append(star_val)
+            elif senti_val:
+                if senti_val == 'positive':
+                    calculated_ratings.append(5.0)
+                elif senti_val == 'negative':
+                    calculated_ratings.append(1.0)
+                else:
+                    calculated_ratings.append(3.0)
+                    
+        average_rating = sum(calculated_ratings) / len(calculated_ratings) if calculated_ratings else 4.0
         # Round to 1 decimal place
         average_rating = round(average_rating, 1)
 
@@ -148,6 +173,7 @@ def create_app():
                 'id': store[0],
                 'name': store[1], 
                 'location': f"Lat: {store[7]}, Lon: {store[8]}",
+                'mapslink': store[9],
                 'contact': store[4],
                 'rating': average_rating, 
                 'products': products,

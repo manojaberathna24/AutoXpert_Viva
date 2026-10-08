@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ActivityIndicator, Alert, Dimensions, ScrollVie
 import { useLocalSearchParams } from 'expo-router';
 import Layout from '../layout';
 import { LineChart } from 'react-native-chart-kit';
+import { BASE_URL } from '../../constants';
 
 const VehiclePredictionView = () => {
   const params = useLocalSearchParams();
@@ -20,7 +21,7 @@ const VehiclePredictionView = () => {
     const fetchPriceTrends = async () => {
       setLoading(true);
       try {
-        const url = `http://192.168.1.148:5000/vehicle_price_trends?vehicle_type=${vehicle_type}&model_year=${model_year}`;
+        const url = `${BASE_URL}/vehicle_price_trends?vehicle_type=${vehicle_type}&model_year=${model_year}`;
         const res = await fetch(url);
         const json = await res.json();
 

@@ -148,6 +148,17 @@ const StoreDetailsPage = () => {
     <View>
       <Text style={styles.title}>{storeData.name}</Text>
       <Text style={styles.detail}>📍 Location: {storeData.location}</Text>
+      {storeData.mapslink ? (
+        <TouchableOpacity 
+          onPress={() => {
+            import('react-native').then(({ Linking }) => {
+              Linking.openURL(storeData.mapslink).catch(() => Alert.alert('Error', 'Could not open map link'));
+            });
+          }}
+        >
+          <Text style={{ color: '#007bff', fontWeight: 'bold', fontSize: 16, marginBottom: 5 }}>🗺️ Open Location on Google Maps</Text>
+        </TouchableOpacity>
+      ) : null}
       <Text style={styles.detail}>📞 Contact: {storeData.contact}</Text>
       <Text style={styles.detail}>⭐ Average Rating: {displayRating} / 5.0</Text>
 
@@ -167,6 +178,21 @@ const StoreDetailsPage = () => {
         />
       </View>
       <Text style={styles.feedbackSummary}>{feedbackPercentage.toFixed(1)}% Positive Sentiment</Text>
+
+      <Text style={styles.subTitle}>Customer Feedback</Text>
+      {storeData.feedback && storeData.feedback.length > 0 ? (
+        storeData.feedback.slice(0, 3).map((item, index) => (
+          <View key={index} style={{ backgroundColor: '#F8FAFC', padding: 12, borderRadius: 8, marginBottom: 8 }}>
+            <Text style={{ fontWeight: 'bold', color: '#1E293B' }}>🧑 {item.user || 'Anonymous'}</Text>
+            <Text style={{ color: '#475569', marginVertical: 4 }}>💬 {item.comment}</Text>
+            <Text style={{ color: item.sentiment === 'positive' ? '#10B981' : '#EF4444', fontWeight: 'bold' }}>
+              {item.sentiment === 'positive' ? '😊 Positive' : '😞 Negative'}
+            </Text>
+          </View>
+        ))
+      ) : (
+        <Text style={{ color: '#64748B', fontStyle: 'italic', marginBottom: 15 }}>No feedback available.</Text>
+      )}
 
       <Text style={styles.subTitle}>Available Products</Text>
     </View>
@@ -197,10 +223,10 @@ const StoreDetailsPage = () => {
         blurOnSubmit={true}
       />
       <TouchableOpacity style={styles.feedbackButton} onPress={getPrediction}>
-        <Text style={styles.feedbackText}>📝 Submit Feedback</Text>
+        <Text style={styles.feedbackText}>Submit Feedback</Text>
       </TouchableOpacity>
       <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-        <Text style={styles.backText}>🔙 Go Back</Text>
+        <Text style={styles.backText}>Go Back</Text>
       </TouchableOpacity>
     </View>
   ), [inputKey, handleTextChange, getPrediction, userRating]);
@@ -222,23 +248,22 @@ const StoreDetailsPage = () => {
     <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
       <Header />
       <View style={{ flex: 1 }}>
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-            style={{ flex: 1 }}
-            enabled={Platform.OS === 'ios'}
-          >
-            <FlatList
-              data={storeData.products}
-              keyExtractor={(item) => item.id}
-              renderItem={renderProduct}
-              ListHeaderComponent={renderHeader}
-              ListFooterComponent={footerComponent}
-              contentContainerStyle={{ paddingBottom: 30, paddingHorizontal: 16 }}
-              removeClippedSubviews={false}
-            />
-          </KeyboardAvoidingView>
-        </TouchableWithoutFeedback>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={{ flex: 1 }}
+          enabled={Platform.OS === 'ios'}
+        >
+          <FlatList
+            data={storeData.products}
+            keyExtractor={(item) => item.id}
+            renderItem={renderProduct}
+            ListHeaderComponent={renderHeader}
+            ListFooterComponent={footerComponent}
+            contentContainerStyle={{ paddingBottom: 30, paddingHorizontal: 16 }}
+            removeClippedSubviews={false}
+            keyboardShouldPersistTaps="handled"
+          />
+        </KeyboardAvoidingView>
       </View>
 
       <Footer />
